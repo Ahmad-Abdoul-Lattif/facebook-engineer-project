@@ -1,0 +1,68 @@
+services:
+  postgres:
+    image: postgres:13
+    container_name: sales_postgres
+    environment:
+      POSTGRES_DB: sales_db
+      POSTGRES_USER: admin
+      POSTGRES_PASSWORD: password
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./scripts/init_postgresql.sql:/docker-entrypoint-initdb.d/init.sql
+    networks:
+      - sales-network
+
+  mongodb:
+    image: mongo:6.0
+    container_name: sales_mongodb
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: admin
+      MONGO_INITDB_ROOT_PASSWORD: password
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongo_data:/data/db
+    networks:
+      - sales-network
+
+  grafana:
+    image: grafana/grafana:10.2.0
+    container_name: sales_grafana
+    ports:
+      - "3000:3000"
+    environment:
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: admin
+    volumes:
+      - grafana_data:/var/lib/grafana
+    networks:
+      - sales-network
+
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: sales_prometheus
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml
+    networks:
+      - sales-network
+
+  node-exporter:
+    image: prom/node-exporter:latest
+    container_name: sales_node_exporter
+    ports:
+      - "9100:9100"
+    networks:
+      - sales-network
+
+volumes:
+  postgres_data:
+  mongo_data:
+  grafana_data:
+
+networks:
+  sales-network:
+    driver: bridge
