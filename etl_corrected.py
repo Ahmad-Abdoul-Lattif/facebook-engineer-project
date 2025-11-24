@@ -60,25 +60,38 @@ def run_etl_pipeline():
             'mongodb://admin:password@sales_mongodb:27017/',  # Nom du service Docker
             authSource='admin'
         )
-        
+
         db = client['sales_analytics']
         collection = db['sales']
-        collection.delete_many({})
-        
+
+        # ⚡ AMÉLIORATION : Sauvegarder les ventes API (IDs >= 1000)
+        api_sales = list(collection.find({"id": {"$gte": 1000}}))
+        logger.info(f'💾 {len(api_sales)} ventes API sauvegardées')
+
+        # Nettoyer seulement les ventes PostgreSQL (IDs 1-999)
+        collection.delete_many({"id": {"$lt": 1000}})
+
         if transformed_data:
             result = collection.insert_many(transformed_data)
-            logger.info(f'✅ {len(result.inserted_ids)} enregistrements chargés')
-        
+            logger.info(f'✅ {len(result.inserted_ids)} ventes PostgreSQL chargées')
+
+        # Statistiques finales
+        total_count = collection.count_documents({})
+        postgres_count = collection.count_documents({"id": {"$lt": 1000}})
+        api_count = collection.count_documents({"id": {"$gte": 1000}})
+
         stats = {
-            'total_records': len(transformed_data),
+            'total_records': total_count,
+            'postgres_sales': postgres_count,
+            'api_sales': api_count,
             'total_revenue': sum(sale['total_revenue'] for sale in transformed_data)
         }
-        
+
         logger.info(f'📊 Statistiques: {stats}')
         client.close()
-        
-        print(f'🎉 ETL TERMINÉ AVEC SUCCÈS!')
-        print(f'📈 {stats["total_records"]} ventes transférées')
+
+        print(f'🎉 ETL AMÉLIORÉ TERMINÉ!')
+        print(f'📈 {postgres_count} ventes PostgreSQL + {api_count} ventes API')
         print(f'💰 Revenue total: {stats["total_revenue"]:.2f} €')
         return True
         

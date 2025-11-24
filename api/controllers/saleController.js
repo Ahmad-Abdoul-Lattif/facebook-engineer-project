@@ -83,21 +83,70 @@ const getSalesStats = async (req, res) => {
 };
 
 // CREATE new sale
+// CREATE new sale - AVEC ID AUTOMATIQUE
 const createSale = async (req, res) => {
     try {
         const saleData = req.body;
-        saleData.total_revenue = saleData.quantity * saleData.price;
-        saleData.is_high_value = saleData.total_revenue > 1000;
-        saleData.revenue_category = saleData.total_revenue > 1000 ? 'High' : 
-                                   saleData.total_revenue > 500 ? 'Medium' : 'Low';
-        saleData.etl_processed_at = new Date().toISOString();
         
-        const sale = new Sale(saleData);
+        // Vérification des champs obligatoires
+        if (!saleData.product_name || !saleData.quantity || !saleData.price) {
+            return res.status(400).json({
+                success: false,
+                error: 'product_name, quantity et price sont obligatoires'
+            });
+        }
+        
+        // Trouver le PLUS GRAND ID existant et ajouter 1
+        const lastSale = await Sale.findOne().sort({ id: -1 });
+        const nextId = lastSale ? lastSale.id + 1 : 1000; // Commence à 1000 pour les ajouts API
+        
+        // Conversion des types
+        const quantity = Number(saleData.quantity);
+        const price = Number(saleData.price);
+        
+        if (isNaN(quantity) || isNaN(price)) {
+            return res.status(400).json({
+                success: false,
+                error: 'quantity et price doivent être des nombres valides'
+            });
+        }
+        
+        // Calculs automatiques
+        const total_revenue = quantity * price;
+        const is_high_value = total_revenue > 1000;
+        const revenue_category = total_revenue > 1000 ? 'High' : 
+                               total_revenue > 500 ? 'Medium' : 'Low';
+        
+        const finalSaleData = {
+            id: nextId, // ← ID AUTOMATIQUE !
+            product_name: saleData.product_name,
+            quantity: quantity,
+            price: price,
+            sale_date: saleData.sale_date || new Date().toISOString().split('T')[0],
+            category: saleData.category || 'General',
+            region: saleData.region || 'Unknown',
+            customer_id: Number(saleData.customer_id) || 1000,
+            total_revenue: total_revenue,
+            is_high_value: is_high_value,
+            revenue_category: revenue_category,
+            etl_processed_at: new Date().toISOString()
+        };
+        
+        const sale = new Sale(finalSaleData);
         await sale.save();
         
-        res.status(201).json({ success: true, data: sale });
+        res.status(201).json({
+            success: true,
+            message: 'Vente créée avec succès',
+            data: sale
+        });
+        
     } catch (error) {
-        res.status(400).json({ success: false, error: error.message });
+        console.error('Erreur création vente:', error);
+        res.status(400).json({
+            success: false,
+            error: error.message
+        });
     }
 };
 
